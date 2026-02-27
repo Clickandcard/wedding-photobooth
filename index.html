@@ -53,7 +53,7 @@ max-width:100%;
 touch-action:none;
 }
 
-/* ===== Album Overlay ===== */
+/* Album */
 #albumOverlay{
 display:none;
 position:fixed;
@@ -104,7 +104,6 @@ cursor:pointer;
 
 <input type="file" id="fileInput" accept="image/*" style="display:none">
 
-<!-- Album -->
 <div id="albumOverlay">
 <img id="preview">
 <div class="thumbRow">
@@ -135,51 +134,18 @@ const slots=[
 let images=slots.map(()=>({img:null,x:0,y:0,scale:1,minScale:1,maxScale:4}));
 let active=-1;
 
-/* เลือกช่อง */
+/* ===== เลือกช่อง ===== */
 canvas.addEventListener("click",e=>{
 const r=canvas.getBoundingClientRect();
 const x=(e.clientX-r.left)*(canvas.width/r.width);
 const y=(e.clientY-r.top)*(canvas.height/r.height);
-
 active=-1;
 slots.forEach((s,i)=>{
 if(x>s.x&&x<s.x+s.w&&y>s.y&&y<s.y+s.h) active=i;
 });
 });
 
-/* Album */
-function openAlbum(){
-if(active===-1){alert("Select frame first");return;}
-overlay.style.display="flex";
-preview.src=thumbs[0].src;
-}
-
-function closeAlbum(){
-overlay.style.display="none";
-}
-
-thumbs.forEach(t=>{
-t.onclick=()=>preview.src=t.src;
-});
-
-preview.onclick=()=>{
-loadImage(preview.src);
-closeAlbum();
-};
-
-/* Upload */
-function openUpload(){
-if(active===-1){alert("Select frame first");return;}
-fileInput.click();
-}
-
-fileInput.onchange=e=>{
-const reader=new FileReader();
-reader.onload=ev=>loadImage(ev.target.result);
-reader.readAsDataURL(e.target.files[0]);
-};
-
-/* โหลดรูป */
+/* ===== โหลดรูป ===== */
 function loadImage(src){
 const img=new Image();
 img.onload=()=>{
@@ -198,7 +164,105 @@ maxScale:baseScale*4
 img.src=src;
 }
 
-/* Draw + Highlight */
+/* ===== Album ===== */
+function openAlbum(){
+if(active===-1){alert("Select frame first");return;}
+overlay.style.display="flex";
+preview.src=thumbs[0].src;
+}
+function closeAlbum(){overlay.style.display="none";}
+thumbs.forEach(t=>t.onclick=()=>preview.src=t.src);
+preview.onclick=()=>{loadImage(preview.src);closeAlbum();}
+
+/* ===== Upload ===== */
+function openUpload(){
+if(active===-1){alert("Select frame first");return;}
+fileInput.click();
+}
+fileInput.onchange=e=>{
+const reader=new FileReader();
+reader.onload=ev=>loadImage(ev.target.result);
+reader.readAsDataURL(e.target.files[0]);
+};
+
+/* ===== Touch System ===== */
+let isDragging=false,startX=0,startY=0,startDist=0,startScale=1;
+
+canvas.addEventListener("touchstart",e=>{
+if(active===-1)return;
+
+if(e.touches.length===1){
+isDragging=true;
+startX=e.touches[0].clientX;
+startY=e.touches[0].clientY;
+}
+
+if(e.touches.length===2){
+isDragging=false;
+startDist=getDist(e.touches[0],e.touches[1]);
+startScale=images[active].scale;
+}
+},{passive:false});
+
+canvas.addEventListener("touchmove",e=>{
+if(active===-1)return;
+e.preventDefault();
+
+let d=images[active];
+let s=slots[active];
+
+/* ลาก */
+if(e.touches.length===1 && isDragging){
+let dx=e.touches[0].clientX-startX;
+let dy=e.touches[0].clientY-startY;
+d.x+=dx;
+d.y+=dy;
+startX=e.touches[0].clientX;
+startY=e.touches[0].clientY;
+}
+
+/* pinch zoom */
+if(e.touches.length===2){
+let newDist=getDist(e.touches[0],e.touches[1]);
+let ratio=newDist/startDist;
+let newScale=startScale*ratio;
+newScale=Math.max(d.minScale,Math.min(d.maxScale,newScale));
+
+let rect=canvas.getBoundingClientRect();
+let centerX=((e.touches[0].clientX+e.touches[1].clientX)/2-rect.left)*(canvas.width/rect.width);
+let centerY=((e.touches[0].clientY+e.touches[1].clientY)/2-rect.top)*(canvas.height/rect.height);
+
+let imgCenterX=s.x+s.w/2+d.x;
+let imgCenterY=s.y+s.h/2+d.y;
+
+let dx=centerX-imgCenterX;
+let dy=centerY-imgCenterY;
+
+d.x-=dx*(newScale/d.scale-1);
+d.y-=dy*(newScale/d.scale-1);
+
+d.scale=newScale;
+}
+
+/* clamp */
+if(d.img){
+let iw=d.img.width*d.scale;
+let ih=d.img.height*d.scale;
+let maxX=Math.max(0,(iw-s.w)/2);
+let maxY=Math.max(0,(ih-s.h)/2);
+d.x=Math.min(maxX,Math.max(-maxX,d.x));
+d.y=Math.min(maxY,Math.max(-maxY,d.y));
+}
+
+},{passive:false});
+
+canvas.addEventListener("touchend",()=>isDragging=false);
+
+function getDist(a,b){
+return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+}
+
+/* ===== Draw ===== */
 function draw(includeHighlight=true){
 ctx.clearRect(0,0,707,2000);
 
@@ -234,10 +298,9 @@ if(frame.complete) ctx.drawImage(frame,0,0,707,2000);
 if(includeHighlight)
 requestAnimationFrame(()=>draw(true));
 }
-
 draw(true);
 
-/* Save */
+/* ===== Save ===== */
 function saveImage(){
 draw(false);
 canvas.toBlob(blob=>{
