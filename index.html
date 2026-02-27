@@ -189,24 +189,15 @@ const img=new Image();
 img.onload=()=>{
 const s=slots[active];
 
-/* บังคับเต็มความกว้างช่อง */
-const scale = s.w / img.width;
-
-/* จัดตำแหน่งให้อยู่กลางแนวตั้ง */
-const scaledHeight = img.height * scale;
-let offsetY = 0;
-
-if(scaledHeight < s.h){
-offsetY = 0; // ถ้ารูปเตี้ยกว่า ไม่ต้องขยับ
-}else{
-offsetY = 0;
-}
+const baseScale = s.w / img.width; // พอดีแนวนอน
 
 images[active]={
 img,
 x:0,
-y:offsetY,
-scale
+y:0,
+scale:baseScale,
+minScale:baseScale,   // ห้ามเล็กกว่านี้
+maxScale:baseScale*4  // ซูมได้ 4 เท่า
 };
 };
 img.src=src;
@@ -247,8 +238,11 @@ startY=e.touches[0].clientY;
 if(e.touches.length===2){
 let newDist=getDist(e.touches[0],e.touches[1]);
 let ratio=newDist/startDist;
-images[active].scale=startScale*ratio;
-images[active].scale=Math.max(0.5,Math.min(5,images[active].scale));
+let d = images[active];
+d.scale = startScale * ratio;
+
+/* ล็อกไม่ให้เล็กกว่าพอดีกรอบ */
+d.scale = Math.max(d.minScale, Math.min(d.maxScale, d.scale));
 }
 },{passive:false});
 
@@ -304,4 +298,5 @@ a.click();
 </script>
 </body>
 </html>
+
 
