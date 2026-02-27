@@ -188,8 +188,26 @@ function loadImage(src){
 const img=new Image();
 img.onload=()=>{
 const s=slots[active];
-const scale=Math.min(s.w/img.width,s.h/img.height)*0.95;
-images[active]={img,x:0,y:0,scale};
+
+/* บังคับเต็มความกว้างช่อง */
+const scale = s.w / img.width;
+
+/* จัดตำแหน่งให้อยู่กลางแนวตั้ง */
+const scaledHeight = img.height * scale;
+let offsetY = 0;
+
+if(scaledHeight < s.h){
+offsetY = 0; // ถ้ารูปเตี้ยกว่า ไม่ต้องขยับ
+}else{
+offsetY = 0;
+}
+
+images[active]={
+img,
+x:0,
+y:offsetY,
+scale
+};
 };
 img.src=src;
 }
@@ -286,3 +304,4 @@ a.click();
 </script>
 </body>
 </html>
+
