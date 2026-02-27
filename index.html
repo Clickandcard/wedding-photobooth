@@ -10,43 +10,45 @@ margin:0;
 font-family:Georgia,serif;
 background:linear-gradient(to bottom,#faf6f0,#f2e8dc);
 display:flex;
-flex-direction:column;
-align-items:center;
+height:100vh;
 overflow:hidden;
+color:#444; /* ตัวอักษรเทาเข้ม */
 }
 
-/* ปุ่ม */
-.topBar{
+/* ===== ปุ่มด้านซ้าย ===== */
+.sidebar{
+width:130px;
 display:flex;
-gap:8px;
-flex-wrap:wrap;
-justify-content:center;
-padding:10px;
+flex-direction:column;
+gap:12px;
+padding:20px 10px;
+box-sizing:border-box;
 }
 
 button{
 border:none;
-padding:10px 18px;
+padding:12px;
 border-radius:999px;
 font-weight:600;
 cursor:pointer;
 transition:.25s;
 box-shadow:0 6px 15px rgba(0,0,0,.08);
+color:#444;
 }
 
 .albumBtn{background:linear-gradient(135deg,#f7e7ce,#e8cfa5);}
 .uploadBtn{background:linear-gradient(135deg,#f5e6e8,#e6cfd2);}
-.cameraBtn{background:linear-gradient(135deg,#f3d6c6,#e8b9a4);}
 .saveBtn{background:linear-gradient(135deg,#e6d7b9,#d4b483);}
 
 button:hover{transform:translateY(-2px);}
 
-/* กรอบไม่ล้นจอ */
-.storyWrapper{
-height:calc(100vh - 80px);
+/* ===== พื้นที่กรอบ ===== */
+.main{
+flex:1;
 display:flex;
 align-items:center;
-justify-content:center;
+justify-content:flex-end; /* ดันกรอบไปขวา */
+padding-right:30px;
 }
 
 canvas{
@@ -56,7 +58,7 @@ max-width:100%;
 touch-action:none;
 }
 
-/* Overlay อัลบั้ม */
+/* ===== Album Overlay ===== */
 #albumOverlay{
 display:none;
 position:fixed;
@@ -95,21 +97,18 @@ cursor:pointer;
 
 <body>
 
-<div class="topBar">
+<div class="sidebar">
 <button class="albumBtn" onclick="openAlbum()">Wedding Album</button>
-<button class="uploadBtn" onclick="openUpload()">อัปโหลด</button>
-<button class="cameraBtn" onclick="openCamera()">กล้อง</button>
+<button class="uploadBtn" onclick="openUpload()">Upload</button>
 <button class="saveBtn" onclick="saveImage()">Save</button>
 </div>
 
-<div class="storyWrapper">
+<div class="main">
 <canvas id="canvas" width="707" height="2000"></canvas>
 </div>
 
 <input type="file" id="fileInput" accept="image/*" style="display:none">
-<video id="video" autoplay playsinline style="display:none;position:fixed;inset:0;object-fit:cover;z-index:4000;"></video>
 
-<!-- Album Overlay -->
 <div id="albumOverlay">
 <img id="preview">
 <div class="thumbRow">
@@ -117,14 +116,13 @@ cursor:pointer;
 <img src="226A6569.jpg">
 <img src="226A6696.jpg">
 </div>
-<button onclick="closeAlbum()" style="margin-top:20px;padding:8px 16px;border-radius:999px;">ปิด</button>
+<button onclick="closeAlbum()" style="margin-top:20px;padding:8px 16px;border-radius:999px;">Close</button>
 </div>
 
 <script>
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 const fileInput=document.getElementById("fileInput");
-const video=document.getElementById("video");
 const overlay=document.getElementById("albumOverlay");
 const preview=document.getElementById("preview");
 const thumbs=document.querySelectorAll(".thumbRow img");
@@ -155,7 +153,7 @@ if(x>s.x&&x<s.x+s.w&&y>s.y&&y<s.y+s.h) active=i;
 
 /* อัลบั้ม */
 function openAlbum(){
-if(active===-1){alert("แตะเลือกช่องก่อน");return;}
+if(active===-1){alert("Select frame first");return;}
 overlay.style.display="flex";
 preview.src=thumbs[0].src;
 }
@@ -175,7 +173,7 @@ closeAlbum();
 
 /* อัปโหลด */
 function openUpload(){
-if(active===-1){alert("แตะเลือกช่องก่อน");return;}
+if(active===-1){alert("Select frame first");return;}
 fileInput.click();
 }
 
@@ -185,45 +183,29 @@ reader.onload=ev=>loadImage(ev.target.result);
 reader.readAsDataURL(e.target.files[0]);
 };
 
-/* กล้อง */
-async function openCamera(){
-if(active===-1){alert("แตะเลือกช่องก่อน");return;}
-const stream=await navigator.mediaDevices.getUserMedia({video:true});
-video.srcObject=stream;
-video.style.display="block";
-
-video.onclick=()=>{
-const temp=document.createElement("canvas");
-temp.width=video.videoWidth;
-temp.height=video.videoHeight;
-temp.getContext("2d").drawImage(video,0,0);
-loadImage(temp.toDataURL());
-stream.getTracks().forEach(t=>t.stop());
-video.style.display="none";
-};
-}
-
-/* โหลดรูป (โหมดพอดีภาพ ไม่ครอป) */
+/* โหลดรูป (พอดีกรอบ ไม่ครอป) */
 function loadImage(src){
 const img=new Image();
 img.onload=()=>{
 const s=slots[active];
-const scale=Math.min(s.w/img.width,s.h/img.height)*0.95; // contain + margin
+const scale=Math.min(s.w/img.width,s.h/img.height)*0.95;
 images[active]={img,x:0,y:0,scale};
 };
 img.src=src;
 }
 
-/* TOUCH */
+/* ===== Touch Zoom ===== */
 let isDragging=false,startX=0,startY=0,startDist=0,startScale=1;
 
 canvas.addEventListener("touchstart",e=>{
 if(active===-1)return;
+
 if(e.touches.length===1){
 isDragging=true;
 startX=e.touches[0].clientX;
 startY=e.touches[0].clientY;
 }
+
 if(e.touches.length===2){
 isDragging=false;
 startDist=getDist(e.touches[0],e.touches[1]);
@@ -235,7 +217,7 @@ canvas.addEventListener("touchmove",e=>{
 if(active===-1)return;
 e.preventDefault();
 
-if(e.touches.length===1&&isDragging){
+if(e.touches.length===1 && isDragging){
 let dx=e.touches[0].clientX-startX;
 let dy=e.touches[0].clientY-startY;
 images[active].x+=dx;
