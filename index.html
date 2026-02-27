@@ -1,25 +1,27 @@
 <!DOCTYPE html>
 <html>
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
 <title>Wedding Photobooth</title>
 
 <style>
 body{
 margin:0;
-font-family:'Georgia', serif;
+font-family:Georgia,serif;
+background:linear-gradient(to bottom,#faf6f0,#f2e8dc);
 display:flex;
 flex-direction:column;
 align-items:center;
-background:linear-gradient(to bottom,#faf6f0,#f2e8dc);
+overflow:hidden;
 }
 
+/* ปุ่ม */
 .topBar{
 display:flex;
-gap:10px;
+gap:8px;
 flex-wrap:wrap;
 justify-content:center;
-margin:15px 0;
+padding:10px;
 }
 
 button{
@@ -28,49 +30,65 @@ padding:10px 18px;
 border-radius:999px;
 font-weight:600;
 cursor:pointer;
-transition:all .25s ease;
-letter-spacing:0.5px;
-box-shadow:0 6px 15px rgba(0,0,0,0.08);
+transition:.25s;
+box-shadow:0 6px 15px rgba(0,0,0,.08);
 }
 
-.albumBtn{background:linear-gradient(135deg,#f7e7ce,#e8cfa5);color:#6b4f2a;}
-.uploadBtn{background:linear-gradient(135deg,#f5e6e8,#e6cfd2);color:#7a4e57;}
-.cameraBtn{background:linear-gradient(135deg,#f3d6c6,#e8b9a4);color:#7a3e2e;}
-.saveBtn{background:linear-gradient(135deg,#e6d7b9,#d4b483);color:#5c4324;}
+.albumBtn{background:linear-gradient(135deg,#f7e7ce,#e8cfa5);}
+.uploadBtn{background:linear-gradient(135deg,#f5e6e8,#e6cfd2);}
+.cameraBtn{background:linear-gradient(135deg,#f3d6c6,#e8b9a4);}
+.saveBtn{background:linear-gradient(135deg,#e6d7b9,#d4b483);}
 
-button:hover{
-transform:translateY(-2px);
-box-shadow:0 10px 22px rgba(0,0,0,0.15);
-}
+button:hover{transform:translateY(-2px);}
 
+/* กรอบไม่ล้นจอ */
 .storyWrapper{
-width:min(92vw,360px);
-aspect-ratio:707/2000;
-overflow:hidden;
+height:calc(100vh - 80px);
+display:flex;
+align-items:center;
+justify-content:center;
 }
 
 canvas{
-width:100%;
-height:100%;
+height:95vh;
+width:auto;
+max-width:100%;
 touch-action:none;
 }
 
-.thumbBar{
+/* Overlay อัลบั้ม */
+#albumOverlay{
 display:none;
-gap:10px;
-flex-wrap:wrap;
+position:fixed;
+inset:0;
+background:rgba(0,0,0,0.85);
+z-index:3000;
+flex-direction:column;
+align-items:center;
 justify-content:center;
-margin-bottom:10px;
 }
 
-.thumbBar img{
-width:70px;
-height:70px;
+#albumOverlay img{
+max-width:95vw;
+max-height:80vh;
+border-radius:16px;
+box-shadow:0 10px 40px rgba(0,0,0,0.5);
+cursor:pointer;
+}
+
+.thumbRow{
+display:flex;
+gap:12px;
+margin-top:20px;
+}
+
+.thumbRow img{
+width:80px;
+height:80px;
 object-fit:cover;
 border-radius:12px;
+border:3px solid white;
 cursor:pointer;
-border:3px solid #fff;
-box-shadow:0 4px 10px rgba(0,0,0,0.1);
 }
 </style>
 </head>
@@ -78,16 +96,10 @@ box-shadow:0 4px 10px rgba(0,0,0,0.1);
 <body>
 
 <div class="topBar">
-<button class="albumBtn" onclick="toggleAlbum()">Wedding Album</button>
+<button class="albumBtn" onclick="openAlbum()">Wedding Album</button>
 <button class="uploadBtn" onclick="openUpload()">อัปโหลด</button>
 <button class="cameraBtn" onclick="openCamera()">กล้อง</button>
 <button class="saveBtn" onclick="saveImage()">Save</button>
-</div>
-
-<div class="thumbBar" id="thumbBar">
-<img src="226A6528.jpg" onclick="selectAlbumImage(this.src)">
-<img src="226A6569.jpg" onclick="selectAlbumImage(this.src)">
-<img src="226A6696.jpg" onclick="selectAlbumImage(this.src)">
 </div>
 
 <div class="storyWrapper">
@@ -95,18 +107,32 @@ box-shadow:0 4px 10px rgba(0,0,0,0.1);
 </div>
 
 <input type="file" id="fileInput" accept="image/*" style="display:none">
-<video id="video" autoplay playsinline style="display:none;position:fixed;inset:0;object-fit:cover;z-index:2000;"></video>
+<video id="video" autoplay playsinline style="display:none;position:fixed;inset:0;object-fit:cover;z-index:4000;"></video>
+
+<!-- Album Overlay -->
+<div id="albumOverlay">
+<img id="preview">
+<div class="thumbRow">
+<img src="226A6528.jpg">
+<img src="226A6569.jpg">
+<img src="226A6696.jpg">
+</div>
+<button onclick="closeAlbum()" style="margin-top:20px;padding:8px 16px;border-radius:999px;">ปิด</button>
+</div>
 
 <script>
 const canvas=document.getElementById("canvas");
 const ctx=canvas.getContext("2d");
 const fileInput=document.getElementById("fileInput");
-const thumbBar=document.getElementById("thumbBar");
 const video=document.getElementById("video");
+const overlay=document.getElementById("albumOverlay");
+const preview=document.getElementById("preview");
+const thumbs=document.querySelectorAll(".thumbRow img");
 
 const frame=new Image();
 frame.src="Photobooth.png";
 
+/* ช่องรูป */
 const slots=[
 {x:45,y:53,w:617,h:444},
 {x:45,y:562,w:617,h:444},
@@ -115,32 +141,37 @@ const slots=[
 
 let images=slots.map(()=>({img:null,x:0,y:0,scale:1}));
 let active=-1;
-let isSaving=false;
 
 /* เลือกช่อง */
 canvas.addEventListener("click",e=>{
 const r=canvas.getBoundingClientRect();
 const x=(e.clientX-r.left)*(canvas.width/r.width);
 const y=(e.clientY-r.top)*(canvas.height/r.height);
-
 active=-1;
 slots.forEach((s,i)=>{
-if(x>s.x&&x<s.x+s.w&&y>s.y&&y<s.y+s.h){
-active=i;
-}
+if(x>s.x&&x<s.x+s.w&&y>s.y&&y<s.y+s.h) active=i;
 });
 });
 
 /* อัลบั้ม */
-function toggleAlbum(){
+function openAlbum(){
 if(active===-1){alert("แตะเลือกช่องก่อน");return;}
-thumbBar.style.display="flex";
+overlay.style.display="flex";
+preview.src=thumbs[0].src;
 }
 
-function selectAlbumImage(src){
-loadImage(src);
-thumbBar.style.display="none";
+function closeAlbum(){
+overlay.style.display="none";
 }
+
+thumbs.forEach(t=>{
+t.addEventListener("click",()=>preview.src=t.src);
+});
+
+preview.addEventListener("click",()=>{
+loadImage(preview.src);
+closeAlbum();
+});
 
 /* อัปโหลด */
 function openUpload(){
@@ -149,11 +180,9 @@ fileInput.click();
 }
 
 fileInput.onchange=e=>{
-const file=e.target.files[0];
-if(!file) return;
 const reader=new FileReader();
 reader.onload=ev=>loadImage(ev.target.result);
-reader.readAsDataURL(file);
+reader.readAsDataURL(e.target.files[0]);
 };
 
 /* กล้อง */
@@ -174,100 +203,104 @@ video.style.display="none";
 };
 }
 
-/* โหลดรูป */
+/* โหลดรูป (โหมดพอดีภาพ ไม่ครอป) */
 function loadImage(src){
 const img=new Image();
 img.onload=()=>{
 const s=slots[active];
-const scale=Math.max(s.w/img.width,s.h/img.height);
+const scale=Math.min(s.w/img.width,s.h/img.height)*0.95; // contain + margin
 images[active]={img,x:0,y:0,scale};
 };
 img.src=src;
 }
 
-/* ลาก */
-let isDragging=false,startX=0,startY=0;
+/* TOUCH */
+let isDragging=false,startX=0,startY=0,startDist=0,startScale=1;
 
-canvas.addEventListener("mousedown",e=>{
-if(active===-1) return;
+canvas.addEventListener("touchstart",e=>{
+if(active===-1)return;
+if(e.touches.length===1){
 isDragging=true;
-startX=e.clientX;
-startY=e.clientY;
-});
+startX=e.touches[0].clientX;
+startY=e.touches[0].clientY;
+}
+if(e.touches.length===2){
+isDragging=false;
+startDist=getDist(e.touches[0],e.touches[1]);
+startScale=images[active].scale;
+}
+},{passive:false});
 
-canvas.addEventListener("mousemove",e=>{
-if(!isDragging||active===-1) return;
-images[active].x+=e.clientX-startX;
-images[active].y+=e.clientY-startY;
-startX=e.clientX;
-startY=e.clientY;
-});
-
-canvas.addEventListener("mouseup",()=>isDragging=false);
-
-/* ซูม */
-canvas.addEventListener("wheel",e=>{
-if(active===-1) return;
+canvas.addEventListener("touchmove",e=>{
+if(active===-1)return;
 e.preventDefault();
-images[active].scale+=e.deltaY*-0.001;
-images[active].scale=Math.max(0.5,Math.min(5,images[active].scale));
-});
 
-/* วาด */
+if(e.touches.length===1&&isDragging){
+let dx=e.touches[0].clientX-startX;
+let dy=e.touches[0].clientY-startY;
+images[active].x+=dx;
+images[active].y+=dy;
+startX=e.touches[0].clientX;
+startY=e.touches[0].clientY;
+}
+
+if(e.touches.length===2){
+let newDist=getDist(e.touches[0],e.touches[1]);
+let ratio=newDist/startDist;
+images[active].scale=startScale*ratio;
+images[active].scale=Math.max(0.5,Math.min(5,images[active].scale));
+}
+},{passive:false});
+
+canvas.addEventListener("touchend",()=>isDragging=false);
+
+function getDist(a,b){
+return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
+}
+
+/* DRAW */
 function draw(){
 ctx.clearRect(0,0,707,2000);
 
 slots.forEach((s,i)=>{
-const d=images[i];
+let d=images[i];
 if(d.img){
 ctx.save();
 ctx.beginPath();
 ctx.rect(s.x,s.y,s.w,s.h);
 ctx.clip();
 
-const iw=d.img.width*d.scale;
-const ih=d.img.height*d.scale;
+let iw=d.img.width*d.scale;
+let ih=d.img.height*d.scale;
 
-ctx.drawImage(
-d.img,
+ctx.drawImage(d.img,
 s.x+(s.w-iw)/2+d.x,
 s.y+(s.h-ih)/2+d.y,
-iw,ih
-);
+iw,ih);
 
 ctx.restore();
 }
-
-if(i===active && !isSaving){
-ctx.strokeStyle="gold";
-ctx.lineWidth=5;
-ctx.strokeRect(s.x,s.y,s.w,s.h);
-}
 });
 
-if(frame.complete){
-ctx.drawImage(frame,0,0,707,2000);
-}
-
+if(frame.complete) ctx.drawImage(frame,0,0,707,2000);
 requestAnimationFrame(draw);
 }
 draw();
 
-/* Save แบบไม่ติดไฮไลท์ */
+/* SAVE */
 function saveImage(){
-isSaving=true;
-
-setTimeout(()=>{
 canvas.toBlob(blob=>{
+const file=new File([blob],"Wedding.png",{type:"image/png"});
+if(navigator.share && navigator.canShare({files:[file]})){
+navigator.share({files:[file],title:"Wedding Photobooth"});
+}else{
 const a=document.createElement("a");
 a.href=URL.createObjectURL(blob);
-a.download="Wedding-Photobooth.png";
+a.download="Wedding.png";
 a.click();
-isSaving=false;
+}
 });
-},50);
 }
 </script>
-
 </body>
 </html>
