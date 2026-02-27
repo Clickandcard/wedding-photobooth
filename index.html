@@ -12,10 +12,10 @@ background:linear-gradient(to bottom,#faf6f0,#f2e8dc);
 display:flex;
 height:100vh;
 overflow:hidden;
-color:#444; /* ตัวอักษรเทาเข้ม */
+color:#444;
 }
 
-/* ===== ปุ่มด้านซ้าย ===== */
+/* ===== Sidebar ===== */
 .sidebar{
 width:130px;
 display:flex;
@@ -31,7 +31,6 @@ padding:12px;
 border-radius:999px;
 font-weight:600;
 cursor:pointer;
-transition:.25s;
 box-shadow:0 6px 15px rgba(0,0,0,.08);
 color:#444;
 }
@@ -40,14 +39,12 @@ color:#444;
 .uploadBtn{background:linear-gradient(135deg,#f5e6e8,#e6cfd2);}
 .saveBtn{background:linear-gradient(135deg,#e6d7b9,#d4b483);}
 
-button:hover{transform:translateY(-2px);}
-
-/* ===== พื้นที่กรอบ ===== */
+/* ===== Main ===== */
 .main{
 flex:1;
 display:flex;
 align-items:center;
-justify-content:flex-end; /* ดันกรอบไปขวา */
+justify-content:flex-end;
 padding-right:30px;
 }
 
@@ -58,7 +55,7 @@ max-width:100%;
 touch-action:none;
 }
 
-/* ===== Album Overlay ===== */
+/* ===== Album ===== */
 #albumOverlay{
 display:none;
 position:fixed;
@@ -130,14 +127,14 @@ const thumbs=document.querySelectorAll(".thumbRow img");
 const frame=new Image();
 frame.src="Photobooth.png";
 
-/* ช่องรูป */
+/* ช่อง */
 const slots=[
 {x:45,y:53,w:617,h:444},
 {x:45,y:562,w:617,h:444},
 {x:45,y:1071,w:617,h:444}
 ];
 
-let images=slots.map(()=>({img:null,x:0,y:0,scale:1}));
+let images=slots.map(()=>({img:null,x:0,y:0,scale:1,minScale:1,maxScale:4}));
 let active=-1;
 
 /* เลือกช่อง */
@@ -151,59 +148,47 @@ if(x>s.x&&x<s.x+s.w&&y>s.y&&y<s.y+s.h) active=i;
 });
 });
 
-/* อัลบั้ม */
-function openAlbum(){
-if(active===-1){alert("Select frame first");return;}
-overlay.style.display="flex";
-preview.src=thumbs[0].src;
-}
-
-function closeAlbum(){
-overlay.style.display="none";
-}
-
-thumbs.forEach(t=>{
-t.addEventListener("click",()=>preview.src=t.src);
-});
-
-preview.addEventListener("click",()=>{
-loadImage(preview.src);
-closeAlbum();
-});
-
-/* อัปโหลด */
-function openUpload(){
-if(active===-1){alert("Select frame first");return;}
-fileInput.click();
-}
-
-fileInput.onchange=e=>{
-const reader=new FileReader();
-reader.onload=ev=>loadImage(ev.target.result);
-reader.readAsDataURL(e.target.files[0]);
-};
-
-/* โหลดรูป (พอดีกรอบ ไม่ครอป) */
+/* โหลดรูปพอดีแนวนอน */
 function loadImage(src){
 const img=new Image();
 img.onload=()=>{
 const s=slots[active];
-
-const baseScale = s.w / img.width; // พอดีแนวนอน
+const baseScale=s.w/img.width;
 
 images[active]={
 img,
 x:0,
 y:0,
 scale:baseScale,
-minScale:baseScale,   // ห้ามเล็กกว่านี้
-maxScale:baseScale*4  // ซูมได้ 4 เท่า
+minScale:baseScale,
+maxScale:baseScale*4
 };
 };
 img.src=src;
 }
 
-/* ===== Touch Zoom ===== */
+/* Album */
+function openAlbum(){
+if(active===-1){alert("Select frame first");return;}
+overlay.style.display="flex";
+preview.src=thumbs[0].src;
+}
+function closeAlbum(){overlay.style.display="none";}
+thumbs.forEach(t=>t.onclick=()=>preview.src=t.src);
+preview.onclick=()=>{loadImage(preview.src);closeAlbum();}
+
+/* Upload */
+function openUpload(){
+if(active===-1){alert("Select frame first");return;}
+fileInput.click();
+}
+fileInput.onchange=e=>{
+const reader=new FileReader();
+reader.onload=ev=>loadImage(ev.target.result);
+reader.readAsDataURL(e.target.files[0]);
+};
+
+/* ===== Touch ===== */
 let isDragging=false,startX=0,startY=0,startDist=0,startScale=1;
 
 canvas.addEventListener("touchstart",e=>{
@@ -226,24 +211,54 @@ canvas.addEventListener("touchmove",e=>{
 if(active===-1)return;
 e.preventDefault();
 
+let d=images[active];
+let s=slots[active];
+
+/* ลาก */
 if(e.touches.length===1 && isDragging){
 let dx=e.touches[0].clientX-startX;
 let dy=e.touches[0].clientY-startY;
-images[active].x+=dx;
-images[active].y+=dy;
+d.x+=dx;
+d.y+=dy;
 startX=e.touches[0].clientX;
 startY=e.touches[0].clientY;
 }
 
+/* pinch zoom แบบไม่เด้ง */
 if(e.touches.length===2){
+
 let newDist=getDist(e.touches[0],e.touches[1]);
 let ratio=newDist/startDist;
-let d = images[active];
-d.scale = startScale * ratio;
 
-/* ล็อกไม่ให้เล็กกว่าพอดีกรอบ */
-d.scale = Math.max(d.minScale, Math.min(d.maxScale, d.scale));
+let newScale=startScale*ratio;
+newScale=Math.max(d.minScale,Math.min(d.maxScale,newScale));
+
+let rect=canvas.getBoundingClientRect();
+let centerX=((e.touches[0].clientX+e.touches[1].clientX)/2-rect.left)*(canvas.width/rect.width);
+let centerY=((e.touches[0].clientY+e.touches[1].clientY)/2-rect.top)*(canvas.height/rect.height);
+
+let imgCenterX=s.x+s.w/2+d.x;
+let imgCenterY=s.y+s.h/2+d.y;
+
+let dx=centerX-imgCenterX;
+let dy=centerY-imgCenterY;
+
+d.x-=dx*(newScale/d.scale-1);
+d.y-=dy*(newScale/d.scale-1);
+
+d.scale=newScale;
 }
+
+/* clamp */
+let iw=d.img?d.img.width*d.scale:0;
+let ih=d.img?d.img.height*d.scale:0;
+
+let maxX=Math.max(0,(iw-s.w)/2);
+let maxY=Math.max(0,(ih-s.h)/2);
+
+d.x=Math.min(maxX,Math.max(-maxX,d.x));
+d.y=Math.min(maxY,Math.max(-maxY,d.y));
+
 },{passive:false});
 
 canvas.addEventListener("touchend",()=>isDragging=false);
@@ -252,7 +267,7 @@ function getDist(a,b){
 return Math.hypot(b.clientX-a.clientX,b.clientY-a.clientY);
 }
 
-/* DRAW */
+/* Draw */
 function draw(){
 ctx.clearRect(0,0,707,2000);
 
@@ -281,7 +296,7 @@ requestAnimationFrame(draw);
 }
 draw();
 
-/* SAVE */
+/* Save */
 function saveImage(){
 canvas.toBlob(blob=>{
 const file=new File([blob],"Wedding.png",{type:"image/png"});
@@ -296,7 +311,6 @@ a.click();
 });
 }
 </script>
+
 </body>
 </html>
-
-
