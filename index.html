@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Wedding Photobooth</title>
+
+<style>
+body{
+margin:0;
+font-family:'Georgia', serif;
+display:flex;
+flex-direction:column;
+align-items:center;
+background:linear-gradient(to bottom,#faf6f0,#f2e8dc);
+}
+
+.topBar{
+display:flex;
+gap:10px;
+flex-wrap:wrap;
+justify-content:center;
+margin:15px 0;
+}
+
+button{
+border:none;
+padding:10px 18px;
+border-radius:999px;
+font-weight:600;
+cursor:pointer;
+transition:all .25s ease;
+letter-spacing:0.5px;
+box-shadow:0 6px 15px rgba(0,0,0,0.08);
+}
+
+.albumBtn{background:linear-gradient(135deg,#f7e7ce,#e8cfa5);color:#6b4f2a;}
+.uploadBtn{background:linear-gradient(135deg,#f5e6e8,#e6cfd2);color:#7a4e57;}
+.cameraBtn{background:linear-gradient(135deg,#f3d6c6,#e8b9a4);color:#7a3e2e;}
+.saveBtn{background:linear-gradient(135deg,#e6d7b9,#d4b483);color:#5c4324;}
+
+button:hover{
+transform:translateY(-2px);
+box-shadow:0 10px 22px rgba(0,0,0,0.15);
+}
+
+.storyWrapper{
+width:min(92vw,360px);
+aspect-ratio:707/2000;
+overflow:hidden;
+}
+
+canvas{
+width:100%;
+height:100%;
+touch-action:none;
+}
+
+.thumbBar{
+display:none;
+gap:10px;
+flex-wrap:wrap;
+justify-content:center;
+margin-bottom:10px;
+}
+
+.thumbBar img{
+width:70px;
+height:70px;
+object-fit:cover;
+border-radius:12px;
+cursor:pointer;
+border:3px solid #fff;
+box-shadow:0 4px 10px rgba(0,0,0,0.1);
+}
+</style>
+</head>
+
+<body>
+
+<div class="topBar">
+<button class="albumBtn" onclick="toggleAlbum()">Wedding Album</button>
+<button class="uploadBtn" onclick="openUpload()">อัปโหลด</button>
+<button class="cameraBtn" onclick="openCamera()">กล้อง</button>
+<button class="saveBtn" onclick="saveImage()">Save</button>
+</div>
+
+<div class="thumbBar" id="thumbBar">
+<img src="226A6528.jpg" onclick="selectAlbumImage(this.src)">
+<img src="226A6569.jpg" onclick="selectAlbumImage(this.src)">
+<img src="226A6696.jpg" onclick="selectAlbumImage(this.src)">
+</div>
+
+<div class="storyWrapper">
+<canvas id="canvas" width="707" height="2000"></canvas>
+</div>
+
+<input type="file" id="fileInput" accept="image/*" style="display:none">
+<video id="video" autoplay playsinline style="display:none;position:fixed;inset:0;object-fit:cover;z-index:2000;"></video>
+
+<script>
+const canvas=document.getElementById("canvas");
+const ctx=canvas.getContext("2d");
+const fileInput=document.getElementById("fileInput");
+const thumbBar=document.getElementById("thumbBar");
+const video=document.getElementById("video");
+
+const frame=new Image();
+frame.src="Photobooth.png";
+
+const slots=[
+{x:45,y:53,w:617,h:444},
+{x:45,y:562,w:617,h:444},
+{x:45,y:1071,w:617,h:444}
+];
+
+let images=slots.map(()=>({img:null,x:0,y:0,scale:1}));
+let active=-1;
+let isSaving=false;
+
+/* เลือกช่อง */
+canvas.addEventListener("click",e=>{
+const r=canvas.getBoundingClientRect();
+const x=(e.clientX-r.left)*(canvas.width/r.width);
+const y=(e.clientY-r.top)*(canvas.height/r.height);
+
+active=-1;
+slots.forEach((s,i)=>{
+if(x>s.x&&x<s.x+s.w&&y>s.y&&y<s.y+s.h){
+active=i;
+}
+});
+});
+
+/* อัลบั้ม */
+function toggleAlbum(){
+if(active===-1){alert("แตะเลือกช่องก่อน");return;}
+thumbBar.style.display="flex";
+}
+
+function selectAlbumImage(src){
+loadImage(src);
+thumbBar.style.display="none";
+}
+
+/* อัปโหลด */
+function openUpload(){
+if(active===-1){alert("แตะเลือกช่องก่อน");return;}
+fileInput.click();
+}
+
+fileInput.onchange=e=>{
+const file=e.target.files[0];
+if(!file) return;
+const reader=new FileReader();
+reader.onload=ev=>loadImage(ev.target.result);
+reader.readAsDataURL(file);
+};
+
+/* กล้อง */
+async function openCamera(){
+if(active===-1){alert("แตะเลือกช่องก่อน");return;}
+const stream=await navigator.mediaDevices.getUserMedia({video:true});
+video.srcObject=stream;
+video.style.display="block";
+
+video.onclick=()=>{
+const temp=document.createElement("canvas");
+temp.width=video.videoWidth;
+temp.height=video.videoHeight;
+temp.getContext("2d").drawImage(video,0,0);
+loadImage(temp.toDataURL());
+stream.getTracks().forEach(t=>t.stop());
+video.style.display="none";
+};
+}
+
+/* โหลดรูป */
+function loadImage(src){
+const img=new Image();
+img.onload=()=>{
+const s=slots[active];
+const scale=Math.max(s.w/img.width,s.h/img.height);
+images[active]={img,x:0,y:0,scale};
+};
+img.src=src;
+}
+
+/* ลาก */
+let isDragging=false,startX=0,startY=0;
+
+canvas.addEventListener("mousedown",e=>{
+if(active===-1) return;
+isDragging=true;
+startX=e.clientX;
+startY=e.clientY;
+});
+
+canvas.addEventListener("mousemove",e=>{
+if(!isDragging||active===-1) return;
+images[active].x+=e.clientX-startX;
+images[active].y+=e.clientY-startY;
+startX=e.clientX;
+startY=e.clientY;
+});
+
+canvas.addEventListener("mouseup",()=>isDragging=false);
+
+/* ซูม */
+canvas.addEventListener("wheel",e=>{
+if(active===-1) return;
+e.preventDefault();
+images[active].scale+=e.deltaY*-0.001;
+images[active].scale=Math.max(0.5,Math.min(5,images[active].scale));
+});
+
+/* วาด */
+function draw(){
+ctx.clearRect(0,0,707,2000);
+
+slots.forEach((s,i)=>{
+const d=images[i];
+if(d.img){
+ctx.save();
+ctx.beginPath();
+ctx.rect(s.x,s.y,s.w,s.h);
+ctx.clip();
+
+const iw=d.img.width*d.scale;
+const ih=d.img.height*d.scale;
+
+ctx.drawImage(
+d.img,
+s.x+(s.w-iw)/2+d.x,
+s.y+(s.h-ih)/2+d.y,
+iw,ih
+);
+
+ctx.restore();
+}
+
+if(i===active && !isSaving){
+ctx.strokeStyle="gold";
+ctx.lineWidth=5;
+ctx.strokeRect(s.x,s.y,s.w,s.h);
+}
+});
+
+if(frame.complete){
+ctx.drawImage(frame,0,0,707,2000);
+}
+
+requestAnimationFrame(draw);
+}
+draw();
+
+/* Save แบบไม่ติดไฮไลท์ */
+function saveImage(){
+isSaving=true;
+
+setTimeout(()=>{
+canvas.toBlob(blob=>{
+const a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="Wedding-Photobooth.png";
+a.click();
+isSaving=false;
+});
+},50);
+}
+</script>
+
+</body>
+</html>
